@@ -1,6 +1,58 @@
-# FreeAgent MCP Server
+# FreeAgent MCP Server — AI Tax Advisor Edition
 
-MCP (Model Context Protocol) server for the FreeAgent accounting API. Enables LLMs to securely access and manage accounting data including contacts, invoices, bills, bank transactions, and more.
+> A fork of [StupidCodeFactory/freeagent-mcp](https://github.com/StupidCodeFactory/freeagent-mcp), enhanced with AI-powered tax advisory capabilities for UK sole traders.
+
+## What This Does
+
+This MCP server connects Claude (or any MCP-compatible AI) directly to your FreeAgent accounting data. But unlike a basic API wrapper, it adds an **intelligent tax advisory layer** that:
+
+- **Auto-categorises unexplained transactions** with confidence scoring
+- **Matches PayPal currency conversion chains** (the ones FreeAgent can't handle)
+- **Advises whether expenses are claimable** under HMRC rules, tailored to your business
+- **Suggests apportionment** for mixed business/personal expenses
+- **Estimates your tax position** in real-time from your P&L data
+
+Everything works inside the chat — no separate portal or web app needed.
+
+## Who Is This For?
+
+UK sole traders and freelancers using FreeAgent who want:
+- Making Tax Digital compliance without the manual grind
+- Intelligent expense categorisation that learns your patterns
+- Tax advice contextualised to their specific business
+- Their 100+ unexplained transactions dealt with in minutes, not hours
+
+## Quick Example
+
+```
+You: "I have 34 unexplained transactions. Can you sort them out?"
+
+Claude: I can auto-categorise 22 with high confidence (£891.20).
+        8 need your review (£289.14), and 4 are PayPal chains
+        I can match up (£67.49). Want me to process the easy ones?
+
+You: "Yes. Also, can I claim my Splice subscription?"
+
+Claude: You have Flowr on the Play Store, so music production
+        software is claimable under 'Computer Software'. VAT at
+        20% reclaimable if registered. HMRC risk: Low — you have
+        a published commercial product evidencing business use.
+```
+
+## New Tools (Tax Advisor Edition)
+
+| Tool | Description |
+|------|-------------|
+| `assess_expense_claimability` | Evaluate if a transaction is claimable under HMRC rules |
+| `batch_categorise_unexplained` | Pull unexplained transactions, categorise with confidence scores |
+| `match_paypal_chain` | Match PayPal payment + credit card deposit + conversion fee chains |
+| `suggest_apportionment` | Calculate defensible business/personal splits for mixed-use expenses |
+| `tax_position_summary` | Year-to-date P&L with estimated tax liability |
+| `learn_merchant_pattern` | Record merchant→category mappings for future auto-matching |
+
+## Inherited Tools (from upstream)
+
+Invoices, contacts, bills, bank transactions, explanations, projects, timeslips, expenses, and more. See [upstream documentation](https://github.com/StupidCodeFactory/freeagent-mcp) for the full list.
 
 ## Prerequisites
 
@@ -10,17 +62,17 @@ MCP (Model Context Protocol) server for the FreeAgent accounting API. Enables LL
 
 ## Installation
 
-### From npm (recommended)
+### From npm (coming soon)
 
 ```bash
-npm install -g @stupidcodefactory/freeagent-mcp-server
+npm install -g @balticdesign/freeagent-mcp-tax-advisor
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/StupidCodeFactory/freeagent-mcp.git
-cd freeagent-mcp
+git clone https://github.com/balticdesign/freeagent-mcp-ai.git
+cd freeagent-mcp-ai
 npm install
 npm run build
 ```
@@ -36,8 +88,6 @@ npm run build
 
 ### 2. Set Environment Variables
 
-Create a `.env` file or export the following environment variables:
-
 ```bash
 export FREEAGENT_CLIENT_ID="your_client_id"
 export FREEAGENT_CLIENT_SECRET="your_client_secret"
@@ -45,150 +95,82 @@ export FREEAGENT_REDIRECT_URI="http://localhost:3000/callback"
 export FREEAGENT_ENVIRONMENT="sandbox"  # or "production"
 ```
 
-Optional:
-```bash
-export TOKEN_ENCRYPTION_KEY="$(openssl rand -hex 32)"  # For persistent token storage
-export LOG_LEVEL="info"
-```
+### 3. Connect to Claude Desktop
 
-## Usage with Claude Desktop
-
-Add to your Claude Desktop configuration file:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Add to your Claude Desktop config:
 
 ```json
 {
   "mcpServers": {
     "freeagent": {
       "command": "npx",
-      "args": ["@stupidcodefactory/freeagent-mcp-server"],
+      "args": ["@balticdesign/freeagent-mcp-tax-advisor"],
       "env": {
         "FREEAGENT_CLIENT_ID": "your_client_id",
         "FREEAGENT_CLIENT_SECRET": "your_client_secret",
         "FREEAGENT_REDIRECT_URI": "http://localhost:3000/callback",
-        "FREEAGENT_ENVIRONMENT": "sandbox"
+        "FREEAGENT_ENVIRONMENT": "production"
       }
     }
   }
 }
 ```
 
-Or if installed from source:
+On first use, the server provides an OAuth URL. Visit it to authorise. Tokens auto-refresh after that.
 
-```json
-{
-  "mcpServers": {
-    "freeagent": {
-      "command": "node",
-      "args": ["/path/to/freeagent-mcp/dist/index.js"],
-      "env": {
-        "FREEAGENT_CLIENT_ID": "your_client_id",
-        "FREEAGENT_CLIENT_SECRET": "your_client_secret",
-        "FREEAGENT_REDIRECT_URI": "http://localhost:3000/callback",
-        "FREEAGENT_ENVIRONMENT": "sandbox"
-      }
-    }
-  }
-}
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│  Claude / LLM                               │
+│  (Reasoning, tax advice, user interaction)  │
+├─────────────────────────────────────────────┤
+│  Layer 4: Business Context Awareness        │
+│  (Company data, VAT status, business type)  │
+├─────────────────────────────────────────────┤
+│  Layer 3: Tax Intelligence Engine           │
+│  (HMRC rules, category mappings, VAT)       │
+├─────────────────────────────────────────────┤
+│  Layer 2: MCP Tools (Existing + New)        │
+│  (Invoices, transactions, explanations...)  │
+├─────────────────────────────────────────────┤
+│  Layer 1: FreeAgent API Client              │
+│  (OAuth2, rate limiting, REST calls)        │
+└─────────────────────────────────────────────┘
 ```
 
-## Authentication
+## Important Disclaimers
 
-On first use, the server will provide an authorization URL. Visit this URL to authorize the app with your FreeAgent account. After authorization, tokens are stored and refreshed automatically.
+- This tool provides guidance based on general HMRC rules for UK sole traders
+- It is **not a substitute for professional accounting advice**
+- All auto-applied explanations are marked "for approval" in FreeAgent
+- The system flags uncertainty and recommends professional advice when appropriate
+- Tax knowledge reflects 2025/26 rules and needs annual updates
 
-## Available Resources
+## Roadmap
 
-| Resource | URI | Description |
-|----------|-----|-------------|
-| Company | `freeagent://company` | Company profile and settings |
-| Contacts | `freeagent://contacts` | Clients and suppliers |
-| Invoices | `freeagent://invoices` | Sales invoices |
-| Bills | `freeagent://bills` | Supplier bills |
-| Bank Accounts | `freeagent://bank_accounts` | Bank account list |
-| Bank Transactions | `freeagent://bank_transactions?bank_account={id}` | Transaction feed |
-| Projects | `freeagent://projects` | Projects |
-| Timeslips | `freeagent://timeslips` | Time entries |
-| Expenses | `freeagent://expenses` | Expense claims |
-| Categories | `freeagent://categories` | Account categories |
-| Users | `freeagent://users` | Team members |
+- [x] Fork and restructure codebase
+- [ ] Merchant pattern matching and storage
+- [ ] Batch categorisation with confidence scoring
+- [ ] PayPal chain matching
+- [ ] Tax claimability assessment
+- [ ] Apportionment calculator
+- [ ] Tax position summary
+- [ ] MCPB desktop extension packaging
+- [ ] npm publication
 
-## Available Tools
+## Contributing
 
-### Invoices
-- `create_invoice` - Create a new invoice
-- `update_invoice` - Update a draft invoice
-- `send_invoice` - Email invoice to contact
-- `mark_invoice_sent` - Mark as sent without emailing
-- `mark_invoice_paid` - Record payment
-- `delete_invoice` - Delete draft invoice
+Contributions welcome! Particularly:
+- Additional merchant→category pattern mappings
+- HMRC rule updates for new tax years
+- Support for additional business types beyond sole trader
+- Improved PayPal/Stripe transaction chain detection
 
-### Contacts
-- `create_contact` - Add new client/supplier
-- `update_contact` - Update contact details
-- `delete_contact` - Remove contact
+## Credits
 
-### Bank Transactions
-- `explain_transaction` - Categorize transaction
-- `match_transaction_to_invoice` - Match to invoice payment
-- `match_transaction_to_bill` - Match to bill payment
-- `split_transaction` - Split across categories
-- `unexplain_transaction` - Remove explanation
-
-### Bank Transaction Explanations
-- `list_bank_transaction_explanations` - List all explanations for a bank account
-- `get_bank_transaction_explanation` - Get explanation details including attachment info
-- `create_bank_transaction_explanation` - Create explanation (payment, invoice receipt, bill payment, transfer, etc.)
-- `update_bank_transaction_explanation` - Update existing explanation
-- `delete_bank_transaction_explanation` - Delete explanation
-- `upload_receipt` - Upload receipt/attachment (PNG, JPEG, GIF, PDF, max 5MB)
-
-### Bills
-- `create_bill` - Record supplier bill
-- `update_bill` - Modify bill
-- `delete_bill` - Remove bill
-
-### Projects
-- `create_project` - Create project
-- `update_project` - Update project
-- `create_task` - Add task to project
-- `create_timeslip` - Log time entry
-
-### Queries
-- `list_unpaid_invoices` - Get overdue/open invoices
-- `get_bank_summary` - Aggregate balances
-- `search_transactions` - Search by description
-- `get_unexplained_transactions` - List unexplained transactions
-
-## Available Prompts
-
-- `monthly_expense_summary` - Categorized expense report
-- `invoice_from_description` - Create invoice from natural language
-- `cash_flow_forecast` - Project cash position (30/60/90 days)
-- `overdue_invoice_followup` - Draft reminder emails
-- `transaction_categorization` - Suggest categories for unexplained transactions
-- `project_profitability` - Analyze project margins
-- `quarterly_tax_estimate` - Estimate tax liability
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run dev
-
-# Run tests
-npm test
-
-# Type check
-npm run typecheck
-
-# Build
-npm run build
-```
+- **Upstream**: [StupidCodeFactory/freeagent-mcp](https://github.com/StupidCodeFactory/freeagent-mcp)
+- **Tax Advisor Edition**: [Baltic Design](https://balticdesign.co.uk) — Dan Cregin
 
 ## License
 
