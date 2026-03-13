@@ -42,7 +42,7 @@ export function createFreeAgentMcpServer(): FreeAgentMcpServer {
   const server = new Server(
     {
       name: 'freeagent-mcp-server',
-      version: '1.0.0',
+      version: '1.1.0',
     },
     {
       capabilities: {
@@ -358,7 +358,38 @@ export function createFreeAgentMcpServer(): FreeAgentMcpServer {
   // ========== TOOLS ==========
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
-      // Invoice tools
+      // ===== AUTH TOOLS (Tax Advisor Edition) =====
+      {
+        name: 'get_auth_url',
+        description: 'Get the FreeAgent OAuth authorization URL. Visit this URL in a browser to approve access, then use auth_callback with the code from the redirect URL.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
+      {
+        name: 'auth_callback',
+        description: 'Complete FreeAgent OAuth authentication by providing the authorization code. After visiting the auth URL and approving access, copy the "code" parameter from the callback URL and pass it here.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            code: {
+              type: 'string',
+              description: 'The authorization code from the OAuth callback URL (the "code" query parameter)',
+            },
+          },
+          required: ['code'],
+        },
+      },
+      {
+        name: 'auth_status',
+        description: 'Check whether the FreeAgent MCP server is currently authenticated.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
+      // ===== INVOICE TOOLS =====
       {
         name: 'create_invoice',
         description: 'Create a new invoice with line items',
@@ -527,8 +558,69 @@ export function createFreeAgentMcpServer(): FreeAgentMcpServer {
     const { name, arguments: args } = request.params;
 
     try {
-      const client = getClient();
       let result: unknown;
+
+      // ===== AUTH TOOLS (handle before requiring client) =====
+      switch (name) {
+        case 'get_auth_url': {
+          const url = generateAuthorizationUrl();
+          const authenticated = tokenManager.isAuthenticated();
+          result = {
+            authenticated,
+            authorization_url: url,
+            instructions: authenticated
+              ? 'Already authenticated. You can re-authorize by visiting the URL above if needed.'
+              : 'Visit the authorization URL in your browser, approve access, then copy the "code" parameter from the redirect URL and use the auth_callback tool.',
+          };
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          };
+        }
+
+        case 'auth_callback': {
+          const code = (args as { code: string }).code;
+          if (!code) {
+            throw new McpError(ErrorCode.InvalidParams, 'Authorization code is required');
+          }
+          try {
+            const tokens = await exchangeCodeForTokens(code);
+            await tokenManager.setTokens(tokens);
+            // Clear lookup caches on new auth
+            contactNameLookup = null;
+            bankAccountNameLookup = null;
+            freeAgentClient = null;
+            result = {
+              success: true,
+              message: 'Successfully authenticated with FreeAgent! You can now use all FreeAgent tools.',
+            };
+          } catch (error) {
+            result = {
+              success: false,
+              message: `Authentication failed: ${error instanceof Error ? error.message : String(error)}`,
+              hint: 'Make sure you are using a fresh authorization code. Codes can only be used once and expire quickly. Try get_auth_url to get a new authorization URL.',
+            };
+          }
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          };
+        }
+
+        case 'auth_status': {
+          const authenticated = tokenManager.isAuthenticated();
+          result = {
+            authenticated,
+            message: authenticated
+              ? 'Authenticated and ready to use FreeAgent API.'
+              : 'Not authenticated. Use get_auth_url to start the OAuth flow.',
+          };
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          };
+        }
+      }
+
+      // All other tools require an authenticated client
+      const client = getClient();
 
       switch (name) {
         // Invoice tools
