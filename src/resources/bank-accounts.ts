@@ -4,8 +4,17 @@ import { transformBankAccount, transformBankAccounts } from '../transformers/ban
 import { handleResourceError } from '../utils/error-handler.js';
 
 export interface BankAccountFilters {
-  view?: 'all' | 'standard' | 'paypal_accounts' | 'credit_card_accounts';
+  view?: 'all' | 'standard_bank_accounts' | 'paypal_accounts' | 'credit_card_accounts';
 }
+
+// Map friendly short names to the API's expected view filter values
+const VIEW_FILTER_MAP: Record<string, string> = {
+  all: '',
+  standard: 'standard_bank_accounts',
+  standard_bank_accounts: 'standard_bank_accounts',
+  paypal_accounts: 'paypal_accounts',
+  credit_card_accounts: 'credit_card_accounts',
+};
 
 export async function getBankAccounts(
   client: FreeAgentClient,
@@ -13,7 +22,11 @@ export async function getBankAccounts(
 ) {
   try {
     const params: Record<string, string> = {};
-    if (filters.view) params['view'] = filters.view;
+    if (filters.view && filters.view !== 'all') {
+      // Normalise the view value to what the API expects
+      const apiView = VIEW_FILTER_MAP[filters.view] ?? filters.view;
+      if (apiView) params['view'] = apiView;
+    }
 
     const accounts = await client.fetchAllPages<FreeAgentBankAccount>(
       '/bank_accounts',

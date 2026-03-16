@@ -43,7 +43,7 @@ export interface FreeAgentContact {
   sales_tax_registration_number?: string;
   active_projects_count: number;
   direct_debit_mandate_state?: string;
-  status: 'Active' | 'Inactive';
+  status: string; // API returns lowercase: 'active', 'inactive'
   created_at: string;
   updated_at: string;
 }
@@ -122,7 +122,7 @@ export interface FreeAgentBankAccount {
   currency: string;
   current_balance: string;
   latest_activity_date?: string;
-  status: 'Active' | 'Hidden';
+  status: string; // API returns lowercase: 'active', 'hidden'
   is_personal: boolean;
   is_primary: boolean;
   bank_name?: string;

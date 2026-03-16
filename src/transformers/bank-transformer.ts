@@ -10,6 +10,17 @@ import type {
 } from '../types/llm/index.js';
 import { extractId, parseNumericString } from './common.js';
 
+/**
+ * Normalise a status string to title case.
+ * The FreeAgent API returns lowercase values (e.g. "active", "hidden")
+ * but our internal LLM types use title case ("Active", "Hidden").
+ */
+function normaliseStatus(status: string): 'Active' | 'Hidden' {
+  const lower = status?.toLowerCase() ?? '';
+  if (lower === 'hidden') return 'Hidden';
+  return 'Active'; // default to Active for any non-hidden status
+}
+
 export function transformBankAccount(account: FreeAgentBankAccount): LLMBankAccount {
   return {
     id: extractId(account.url),
@@ -18,7 +29,7 @@ export function transformBankAccount(account: FreeAgentBankAccount): LLMBankAcco
     currency: account.currency,
     currentBalance: parseNumericString(account.current_balance),
     openingBalance: parseNumericString(account.opening_balance),
-    status: account.status,
+    status: normaliseStatus(account.status),
     isPrimary: account.is_primary,
     latestActivityDate: account.latest_activity_date,
   };
